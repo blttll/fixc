@@ -50,5 +50,8 @@ Usage of fixc:
   -x=false: Use TLS
 ```
 
+## Binaries
+* https://github.com/blttll/fixc/releases
+
 ## Mini-FIX
 * fixc was inspired by Mini-FIX (http://elato.se/minifix/)

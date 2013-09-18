@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
@@ -43,7 +44,7 @@ func TimeStamp() string {
 		t.Minute(), t.Second(), t.Nanosecond()/1000000)
 }
 
-func LogMe(s string, direction string) {
+func Log(s string, direction string) {
 	_, err := fmt.Printf("%s %s %s\n", TimeStamp(), direction, s)
 	ckErr(err)
 }
@@ -71,7 +72,8 @@ func Remote(conn net.Conn) <-chan []byte {
 	c := make(chan []byte)
 	go func() {
 		scanner := bufio.NewScanner(conn)
-		scanner.Split(ScanFIX)
+		// debug
+		//scanner.Split(ScanFIX)
 		for scanner.Scan() {
 			c <- scanner.Bytes()
 		}
@@ -114,15 +116,14 @@ func Parse(s string) (parsed string) {
 		}
 		header := fmt.Sprintf("8=%s|9=%d|", BeginString, len(body))
 		message := header + body
-		SOHmessage := strings.Replace(message, "|", SOH, -1)
-		cksum := Checksum([]byte(SOHmessage))
-		SOHmessage = fmt.Sprintf("%s10=%03d%s", SOHmessage, cksum, SOH)
-		parsed = SOHmessage
+		parsed = strings.Replace(message, "|", SOH, -1)
+		cksum := Checksum([]byte(parsed))
+		parsed = fmt.Sprintf("%s10=%03d%s", parsed, cksum, SOH)
 	}
 	return
 }
 
-func Command(f *os.File) <-chan string {
+func Scenario(f *os.File, intercom chan string) <-chan string {
 	c := make(chan string)
 	go func() {
 		scanner := bufio.NewScanner(f)
@@ -130,15 +131,30 @@ func Command(f *os.File) <-chan string {
 			line := scanner.Text()
 			switch {
 			case strings.HasPrefix(line, "8=FIX"):
-				c <- line
+				if strings.Contains(line, "$RANDOM") {
+					rand.Seed(time.Now().UnixNano())
+					r := rand.Intn(1000)
+					c <- strings.Replace(line, "$RANDOM", strconv.Itoa(r), -1)
+				} else {
+					c <- line
+				}
 			case strings.HasPrefix(line, "sleep "):
 				sleep, err := time.ParseDuration(strings.Fields(line)[1])
 				ckErr(err)
-				LogMe("sleeping for "+sleep.String(), "-")
+				Log("sleeping for "+sleep.String(), "-")
 				time.Sleep(sleep)
 			case strings.HasPrefix(line, "exit"):
-				LogMe("exiting...", "-")
+				Log("exit", "-")
 				os.Exit(0)
+			case strings.HasPrefix(line, "expect "):
+				expect := strings.Fields(line)[1]
+				Log("expecting "+expect, "-")
+				intercom <- "1"
+				msg := <-intercom
+				if strings.Contains(msg, SOH+expect+SOH) != true {
+					Log("expected "+expect+" but got unexpected "+msg, "-")
+					os.Exit(1)
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
@@ -149,10 +165,10 @@ func Command(f *os.File) <-chan string {
 	return c
 }
 
-func RemoteSend(conn net.Conn, s string) {
+func Send(conn net.Conn, s string) {
 	parsed := Parse(s)
 	message := strings.Replace(parsed, SOH, "|", -1)
-	LogMe(message, "<")
+	Log(message, "<")
 	_, err := fmt.Fprintf(conn, "%s", parsed)
 	ckErr(err)
 	seq = seq + 1
@@ -194,8 +210,8 @@ func main() {
 		tlsConf.InsecureSkipVerify = true
 		conn, err = tls.Dial("tcp", *target+":"+*targetPort, tlsConf)
 	} else {
-		conn, err = net.DialTimeout("tcp", *target+":"+*targetPort, CTOUT*time.Second)
-
+		conn, err = net.DialTimeout("tcp", *target+":"+*targetPort,
+			CTOUT*time.Second)
 	}
 	ckErr(err)
 	defer conn.Close()
@@ -204,18 +220,25 @@ func main() {
 	seq = 1
 	BeginString = fmt.Sprintf("FIX.%s", *fixVer)
 
-	cChan := Command(f)
-	rChan := Remote(conn)
-	hChan := Heartbeat(*HeartBeat)
+	intercom := make(chan string)
+	scenario := Scenario(f, intercom)
+	remote := Remote(conn)
+	hearbeat := Heartbeat(*HeartBeat)
 
 	for {
 		select {
-		case v1 := <-hChan:
-			RemoteSend(conn, v1)
-		case v2 := <-rChan:
-			LogMe(strings.Replace(string(v2), SOH, "|", -1), ">")
-		case v3 := <-cChan:
-			RemoteSend(conn, v3)
+		case v1 := <-hearbeat:
+			Send(conn, v1)
+		case v2 := <-remote:
+			Log(strings.Replace(string(v2), SOH, "|", -1), ">")
+			//check if there is expect command waiting for input
+			select {
+			case <-intercom:
+				intercom <- strings.Replace(string(v2), SOH, "|", -1)
+			default:
+			}
+		case v3 := <-scenario:
+			Send(conn, v3)
 		}
 	}
 }

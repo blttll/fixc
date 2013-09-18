@@ -5,10 +5,10 @@ fixc connects to remote host and sends out FIX messages it reads from local
 scenario file.
 
 Apart from FIX messages several commands can be used in scenario file:
-* `sleep <time>`	- waits for <time> before reading next line
+* `sleep <time>`	- waits for `<time>` before reading next line
 			from scenario file.
 * `expect <tag>=<val>`	- checks if next received message contains
-			provided <tag>=<value>, exits if it's not.
+			provided `<tag>=<value>`, exits if it's not.
 * `$RANDOM`		- replaced with randomly generated number
 			from 0 to 999.
 * `exit`

@@ -72,8 +72,7 @@ func Remote(conn net.Conn) <-chan []byte {
 	c := make(chan []byte)
 	go func() {
 		scanner := bufio.NewScanner(conn)
-		// debug
-		//scanner.Split(ScanFIX)
+		scanner.Split(ScanFIX)
 		for scanner.Scan() {
 			c <- scanner.Bytes()
 		}

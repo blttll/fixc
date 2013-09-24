@@ -17,7 +17,12 @@ import (
 )
 
 const SOH = string(1)
+
+// new connection timeout
 const CTOUT = 3
+
+// length of |10=???|
+const ENDLEN = 8
 
 var fixVer = flag.String("v", "4.3", "FIX protocol version")
 var target = flag.String("h", "", "Target host")
@@ -68,13 +73,13 @@ func Heartbeat(hb time.Duration) <-chan string {
 	return c
 }
 
-func Remote(conn net.Conn) <-chan []byte {
-	c := make(chan []byte)
+func Remote(conn net.Conn) <-chan string {
+	c := make(chan string)
 	go func() {
 		scanner := bufio.NewScanner(conn)
 		scanner.Split(ScanFIX)
 		for scanner.Scan() {
-			c <- scanner.Bytes()
+			c <- scanner.Text()
 		}
 		if err := scanner.Err(); err != nil {
 			fmt.Fprintln(os.Stderr, "reading from remote:", err)
@@ -181,8 +186,8 @@ func ScanFIX(data []byte, isEOF bool) (advance int, token []byte, err error) {
 	}
 	if i := bytes.Index(data, []byte(SOH+"10=")); i >= 0 {
 		// Check if we have tag 10 followed by SOH.
-		if len(data)-i >= 8 {
-			return i + 8, data[0 : i+8], nil
+		if len(data)-i >= ENDLEN {
+			return i + ENDLEN, data[0 : i+ENDLEN], nil
 		}
 	}
 	// If EOF, we have a final, non-SOH terminated message.
@@ -229,11 +234,11 @@ func main() {
 		case v1 := <-hearbeat:
 			Send(conn, v1)
 		case v2 := <-remote:
-			Log(strings.Replace(string(v2), SOH, "|", -1), ">")
+			Log(strings.Replace(v2, SOH, "|", -1), ">")
 			//check if there is expect command waiting for input
 			select {
 			case <-intercom:
-				intercom <- strings.Replace(string(v2), SOH, "|", -1)
+				intercom <- strings.Replace(v2, SOH, "|", -1)
 			default:
 			}
 		case v3 := <-scenario:

@@ -156,7 +156,8 @@ func Scenario(f *os.File, intercom chan string) <-chan string {
 				intercom <- "1"
 				msg := <-intercom
 				if strings.Contains(msg, SOH+expect+SOH) != true {
-					Log("expected "+expect+" but got unexpected "+msg, "-")
+					Log("expected "+expect+" but got unexpected "+
+						strings.Replace(msg, SOH, "|", -1), "-")
 					os.Exit(1)
 				}
 			}
@@ -238,7 +239,7 @@ func main() {
 			//check if there is expect command waiting for input
 			select {
 			case <-intercom:
-				intercom <- strings.Replace(v2, SOH, "|", -1)
+				intercom <- v2
 			default:
 			}
 		case v3 := <-scenario:

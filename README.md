@@ -41,7 +41,7 @@ sleep 1m
 exit
 ```
 Just copy-paste your own messages with "|" as delimiter one per line. Don't 
-worry about tags 8, 10, 34, 49, 52, 56 - fixc replaces them.
+worry about tags 8, 9, 10, 34, 49, 52, 56 - fixc replaces them for you.
 
 ## Usage
 

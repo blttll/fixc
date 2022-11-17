@@ -30,7 +30,7 @@ fixc logs all messages and commands it executes to stdout.
 
 ## Example scenario file
 
-Copy the content to the file that you have provided in `-f` option. Example, `-f="input.log": Input file` options
+Copy the scenario content to the file that you have provided in `-f` option. Example, copy it to `input.log` provided in `-f="input.log": Input file` options
 
 ```
 # logon
